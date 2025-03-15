@@ -1,7 +1,12 @@
 ﻿using API_FEB.Data;
+using API_FEB.DTOs;
 using API_FEB.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 
 namespace API_FEB.Controllers
 {
@@ -10,103 +15,62 @@ namespace API_FEB.Controllers
     public class UsersController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IConfiguration _configuration;
 
-        public UsersController(ApplicationDbContext context)
+        public UsersController(ApplicationDbContext context, IConfiguration configuration)
         {
             _context = context;
+            _configuration = configuration;
         }
 
-        // GET: api/users
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<User>>> GetUsers()
+        // POST: api/users/login
+        [HttpPost("login")]
+        public async Task<ActionResult<object>> Login(Login login)
         {
-            return await _context.Users.ToListAsync();
+            var user = await _context.Users.SingleOrDefaultAsync(u => u.Email == login.Email);
+
+            if (user == null || !BCrypt.Net.BCrypt.Verify(login.Password, user.PasswordHash))
+                return Unauthorized("Invalid email or password.");
+
+            // Generate JWT token
+            var token = GenerateJwtToken(user);
+
+            return Ok(new
+            {
+                Token = token,
+                User = new
+                {
+                    user.Id,
+                    user.FirstName,
+                    user.LastName,
+                    user.Email,
+                    user.Role
+                }
+            });
         }
 
-        // GET: api/users/{id}
-        [HttpGet("{id}")]
-        public async Task<ActionResult<User>> GetUser(int id)
+        private string GenerateJwtToken(User user)
         {
-            var user = await _context.Users.FindAsync(id);
-            if (user == null)
+            var jwtSettings = _configuration.GetSection("JwtSettings");
+            var key = Encoding.UTF8.GetBytes(jwtSettings["Key"]);
+
+            var claims = new List<Claim>
             {
-                return NotFound();
-            }
-            return user;
-        }
+                new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+                new Claim(JwtRegisteredClaimNames.Email, user.Email),
+                new Claim(ClaimTypes.Role, user.Role)
+            };
 
-        // POST: api/users
-        [HttpPost]
-        public async Task<ActionResult<User>> CreateUser(User user)
-        {
-            // Check if the email is already registered
-            if (await _context.Users.AnyAsync(u => u.Email == user.Email))
-            {
-                return Conflict("Email is already registered.");
-            }
+            var credentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256);
+            var token = new JwtSecurityToken(
+                issuer: jwtSettings["Issuer"],
+                audience: jwtSettings["Audience"],
+                claims: claims,
+                expires: DateTime.UtcNow.AddMinutes(int.Parse(jwtSettings["ExpireMinutes"])),
+                signingCredentials: credentials
+            );
 
-            user.CreatedAt = DateTime.UtcNow;
-            user.UpdatedAt = DateTime.UtcNow;
-
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetUser), new { id = user.Id }, user);
-        }
-
-        // PUT: api/users/{id}
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateUser(int id, User user)
-        {
-            if (id != user.Id)
-            {
-                return BadRequest("User ID mismatch.");
-            }
-
-            var existingUser = await _context.Users.FindAsync(id);
-            if (existingUser == null)
-            {
-                return NotFound();
-            }
-
-            // Update properties
-            existingUser.FirstName = user.FirstName;
-            existingUser.LastName = user.LastName;
-            existingUser.Email = user.Email;
-            existingUser.Role = user.Role;
-            existingUser.HasAcceptedTerms = user.HasAcceptedTerms;
-            existingUser.Country = user.Country;
-            existingUser.City = user.City;
-            existingUser.Gender = user.Gender;
-            existingUser.PhoneNumber = user.PhoneNumber;
-            existingUser.JobTitle = user.JobTitle;
-            existingUser.UserType = user.UserType;
-            existingUser.CompanyName = user.CompanyName;
-            existingUser.WebsiteLink = user.WebsiteLink;
-            existingUser.CompanySize = user.CompanySize;
-            existingUser.IsOnboarded = user.IsOnboarded;
-            existingUser.UpdatedAt = DateTime.UtcNow; // Update timestamp
-
-            _context.Entry(existingUser).State = EntityState.Modified;
-            await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
-
-        // DELETE: api/users/{id}
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteUser(int id)
-        {
-            var user = await _context.Users.FindAsync(id);
-            if (user == null)
-            {
-                return NotFound();
-            }
-
-            _context.Users.Remove(user);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            return new JwtSecurityTokenHandler().WriteToken(token);
         }
     }
 }

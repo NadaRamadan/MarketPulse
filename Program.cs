@@ -1,77 +1,47 @@
 ﻿using API_FEB.Data;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
-namespace API_FEB
+var builder = WebApplication.CreateBuilder(args);
+
+// ✅ Add services to the container.
+builder.Services.AddControllers();
+
+// ✅ Configure Database Context
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// ✅ Register Authentication Services
+builder.Services.AddScoped<AuthService>();
+
+// ✅ Enable CORS (Modify origins as needed)
+builder.Services.AddCors(options =>
 {
-    public class Program
-    {
-        public static void Main(string[] args)
-        {
-            var builder = WebApplication.CreateBuilder(args);
+    options.AddPolicy("AllowAll",
+        policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+});
 
-            // 🔥 Configure Logging (Console + Debug)
-            builder.Logging.ClearProviders();
-            builder.Logging.AddConsole();
-            builder.Logging.AddDebug();
+// ✅ Configure Swagger for API documentation
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
-            // ✅ Add Services
-            builder.Services.AddControllers();
-            builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+var app = builder.Build();
 
-            // 🔥 Add CORS (Cross-Origin Resource Sharing)
-            builder.Services.AddCors(options =>
-            {
-                options.AddPolicy("AllowAllOrigins",
-                    policy => policy.AllowAnyOrigin()
-                                    .AllowAnyMethod()
-                                    .AllowAnyHeader());
-            });
-
-            // 🔥 Add Database Context with Error Handling
-            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-            if (string.IsNullOrEmpty(connectionString))
-            {
-                throw new Exception("❌ Connection string 'DefaultConnection' is missing in appsettings.json!");
-            }
-
-            builder.Services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlServer(connectionString, sqlOptions =>
-                    sqlOptions.EnableRetryOnFailure())); // Prevents crashes if DB connection fails temporarily
-
-            var app = builder.Build();
-
-            // ✅ Apply Migrations Automatically (Error Handling Added)
-            using (var scope = app.Services.CreateScope())
-            {
-                try
-                {
-                    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                    dbContext.Database.Migrate();  // Automatically apply migrations
-                    Console.WriteLine("✅ Database migrated successfully.");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"❌ Database migration failed: {ex.Message}");
-                }
-            }
-
-            // ✅ Configure the Middleware Pipeline
-            if (app.Environment.IsDevelopment())
-            {
-                app.UseSwagger();
-                app.UseSwaggerUI();
-            }
-
-            app.UseHttpsRedirection();
-            app.UseAuthorization();
-
-            // 🔥 Enable CORS
-            app.UseCors("AllowAllOrigins");
-
-            app.MapControllers();
-
-            app.Run();
-        }
-    }
+// ✅ Configure middleware pipeline
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
+
+app.UseHttpsRedirection();
+app.UseCors("AllowAll");
+app.UseAuthorization();
+app.MapControllers();
+
+app.Run();

@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace API_FEB.Models
 {
@@ -7,19 +8,19 @@ namespace API_FEB.Models
         public int Id { get; set; }
 
         [Required, StringLength(50)]
-        public string? FirstName { get; set; }
+        public string FirstName { get; set; } = string.Empty;
 
         [Required, StringLength(50)]
-        public string? LastName { get; set; }
+        public string LastName { get; set; } = string.Empty;
 
-        [Required, EmailAddress]
-        public string? Email { get; set; }
-
-        [Required]
-        public string? PasswordHash { get; set; }
+        [Required, EmailAddress, StringLength(100)]
+        public string Email { get; set; } = string.Empty; // Normalize to lowercase before storing
 
         [Required]
-        public string Role { get; set; } = "User"; // Default: User or Admin
+        public string PasswordHash { get; set; } = string.Empty; // Store hashed password only
+
+        [Required, StringLength(20)]
+        public string Role { get; set; } = "User"; // Default: "User" or "Admin"
 
         [Required]
         public bool HasAcceptedTerms { get; set; }
@@ -33,21 +34,30 @@ namespace API_FEB.Models
         [Required, StringLength(10)]
         public string Gender { get; set; } = string.Empty;
 
-        [Required, Phone]
+        [Required]
+        [RegularExpression(@"^\+?\d{7,15}$", ErrorMessage = "Invalid phone number format.")]
         public string PhoneNumber { get; set; } = string.Empty;
 
         [Required, StringLength(100)]
         public string JobTitle { get; set; } = string.Empty;
 
         [Required, StringLength(20)]
-        public string UserType { get; set; } = string.Empty; // "Marketer", "Freelancer", or "Brand Owner"
+        public string UserType { get; set; } = string.Empty; // "Marketer", "Freelancer", "Brand Owner"
 
-        public string? CompanyName { get; set; } // Only for Brand Owner
-        public string? WebsiteLink { get; set; } // Only for Brand Owner
-        public string? CompanySize { get; set; } // Only for Brand Owner
-            public bool IsOnboarded { get; set; } = false; // New field to track onboarding
+        // Fields applicable only to "Brand Owner"
+        [StringLength(100)]
+        public string? CompanyName { get; set; }
+
+        [StringLength(255)]
+        public string? WebsiteLink { get; set; }
+
+        [StringLength(50)]
+        public string? CompanySize { get; set; }
+
+        public bool IsOnboarded { get; set; } = false; // Track if user has completed onboarding
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     }
 }
