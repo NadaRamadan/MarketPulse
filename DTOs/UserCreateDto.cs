@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using API_FEB.Enums;
+using System.ComponentModel.DataAnnotations;
 
 namespace API_FEB.DTOs
 {
@@ -35,12 +36,12 @@ namespace API_FEB.DTOs
         [Required, StringLength(100)]
         public string JobTitle { get; set; }
 
-        [Required, StringLength(20)]
-        public string UserType { get; set; } // "Marketer", "Freelancer", "Brand Owner"
+        [Required]
+        public UserTypeEnum UserType { get; set; } // "Marketer", "Freelancer", "Brand Owner"
 
         public string? CompanyName { get; set; }
         public string? WebsiteLink { get; set; }
-        public string? CompanySize { get; set; }
+        public CompanySizeEnum CompanySize { get; set; }
         [Required] 
         public string Role { get; set; } = "User"; // Default value if not provided
 

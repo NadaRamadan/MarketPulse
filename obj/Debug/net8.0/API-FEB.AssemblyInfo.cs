@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("API-FEB")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+18176dac59a52fbe03ef471848d3a32b702b2f24")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8a9ddb4903b9f7cb477ee55a3327f77b0c6d5b37")]
 [assembly: System.Reflection.AssemblyProductAttribute("API-FEB")]
 [assembly: System.Reflection.AssemblyTitleAttribute("API-FEB")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

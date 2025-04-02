@@ -1,12 +1,14 @@
-﻿using API_FEB.Data;
-using API_FEB.DTOs;
-using API_FEB.Models;
+﻿using API_FEB.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
+using System;
+using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace API_FEB.Controllers
 {
@@ -14,26 +16,31 @@ namespace API_FEB.Controllers
     [ApiController]
     public class UsersController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
+        private readonly UserManager<User> _userManager;
         private readonly IConfiguration _configuration;
 
-        public UsersController(ApplicationDbContext context, IConfiguration configuration)
+        public UsersController(UserManager<User> userManager, IConfiguration configuration)
         {
-            _context = context;
+            _userManager = userManager;
             _configuration = configuration;
         }
 
-        // POST: api/users/login
+        // ✅ Login User
         [HttpPost("login")]
-        public async Task<ActionResult<object>> Login(Login login)
+        public async Task<IActionResult> Login([FromBody] Login login)
         {
-            var user = await _context.Users.SingleOrDefaultAsync(u => u.Email == login.Email);
-
-            if (user == null || !BCrypt.Net.BCrypt.Verify(login.Password, user.PasswordHash))
+            var user = await _userManager.FindByEmailAsync(login.Email);
+            if (user == null || !await _userManager.CheckPasswordAsync(user, login.Password))
+            {
                 return Unauthorized("Invalid email or password.");
+            }
 
             // Generate JWT token
             var token = GenerateJwtToken(user);
+            if (string.IsNullOrEmpty(token))
+            {
+                return StatusCode(500, "Error generating authentication token.");
+            }
 
             return Ok(new
             {
@@ -51,26 +58,44 @@ namespace API_FEB.Controllers
 
         private string GenerateJwtToken(User user)
         {
-            var jwtSettings = _configuration.GetSection("JwtSettings");
-            var key = Encoding.UTF8.GetBytes(jwtSettings["Key"]);
-
-            var claims = new List<Claim>
+            try
             {
-                new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-                new Claim(JwtRegisteredClaimNames.Email, user.Email),
-                new Claim(ClaimTypes.Role, user.Role)
-            };
+                var jwtSettings = _configuration.GetSection("JwtSettings");
+                var key = jwtSettings["Key"];
+                var issuer = jwtSettings["Issuer"];
+                var audience = jwtSettings["Audience"];
+                var expireMinutes = jwtSettings["ExpireMinutes"];
 
-            var credentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256);
-            var token = new JwtSecurityToken(
-                issuer: jwtSettings["Issuer"],
-                audience: jwtSettings["Audience"],
-                claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(int.Parse(jwtSettings["ExpireMinutes"])),
-                signingCredentials: credentials
-            );
+                // ✅ Ensure key and required values are not null
+                if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(issuer) || string.IsNullOrEmpty(audience) || string.IsNullOrEmpty(expireMinutes))
+                {
+                    throw new InvalidOperationException("JWT configuration is missing required values.");
+                }
 
-            return new JwtSecurityTokenHandler().WriteToken(token);
+                var secretKey = Encoding.UTF8.GetBytes(key);
+                var claims = new List<Claim>
+                {
+                    new Claim(JwtRegisteredClaimNames.Sub, user.Id),
+                    new Claim(JwtRegisteredClaimNames.Email, user.Email),
+                    new Claim(ClaimTypes.Role, user.Role ?? "User")
+                };
+
+                var credentials = new SigningCredentials(new SymmetricSecurityKey(secretKey), SecurityAlgorithms.HmacSha256);
+                var token = new JwtSecurityToken(
+                    issuer: issuer,
+                    audience: audience,
+                    claims: claims,
+                    expires: DateTime.UtcNow.AddMinutes(int.Parse(expireMinutes)),
+                    signingCredentials: credentials
+                );
+
+                return new JwtSecurityTokenHandler().WriteToken(token);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error generating JWT token: {ex.Message}");
+                return string.Empty; // Ensures the function always returns a value
+            }
         }
     }
 }
