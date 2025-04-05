@@ -1,7 +1,6 @@
 ﻿using API_FEB.Data;
 using API_FEB.Services;
 using API_FEB.Models;
-
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
@@ -12,7 +11,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -57,6 +55,9 @@ builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Emai
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 
+// ✅ Register Campaign Service (added campaign service)
+builder.Services.AddScoped<CampaignService>();  // Campaign service to handle campaign operations
+
 // ✅ Configure CORS
 var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>();
 builder.Services.AddCors(options =>
@@ -80,7 +81,7 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<ApplicationDbContext>();
-        context.Database.Migrate();
+        context.Database.Migrate();  // Apply migrations if necessary
     }
     catch (Exception ex)
     {
@@ -92,13 +93,16 @@ using (var scope = app.Services.CreateScope())
 // ✅ Configure Middleware
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwagger();           // Swagger for API documentation in Development mode
+    app.UseSwaggerUI();         // Swagger UI for easy testing of endpoints
 }
 
-app.UseHttpsRedirection();
-app.UseCors("AllowSpecific");
-app.UseAuthentication();
-app.UseAuthorization();
-app.MapControllers();
-app.Run();
+app.UseHttpsRedirection();    // Redirect HTTP requests to HTTPS
+app.UseCors("AllowSpecific"); // CORS configuration for specific origins
+app.UseAuthentication();      // Authentication middleware for validating JWTs
+app.UseAuthorization();       // Authorization middleware for protecting endpoints
+
+// ✅ Map Controllers (mapping routes)
+app.MapControllers();          // This maps all the controllers in the project to the API routes
+
+app.Run();  // Run the application
